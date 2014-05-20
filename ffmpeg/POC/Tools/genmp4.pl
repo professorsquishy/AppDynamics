@@ -135,9 +135,10 @@ my $touchDate = &etime2date($touchTime);
 my $outfile = '00' . '.' . $imageType;
 
 # make the initial 00 image from the first image
-print "cp $imageIndex2file{'01'} $tmpdir/$outfile\n";
+print "... Generating screenshot sequence:\n";
+print ">>> cp $imageIndex2file{'01'} $tmpdir/$outfile\n";
 system "cp $imageIndex2file{'01'} $tmpdir/$outfile" unless $DEBUG;
-print "touch -t $touchDate $tmpdir/$outfile\n";
+print ">>> touch -t $touchDate $tmpdir/$outfile\n";
 system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 
 # now process the rest of the image files
@@ -145,13 +146,14 @@ for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
     $touchTime += $imageIndex2duration{$key};
     $touchDate = &etime2date($touchTime);
-    print "cp $imageIndex2file{$key} $tmpdir/$outfile\n";
+    print ">>> cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
-    print "touch -t $touchDate $tmpdir/$outfile\n";
+    print ">>> touch -t $touchDate $tmpdir/$outfile\n";
     system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 }
 # copy the audio file to the tmpdir
-print "cp $audioFile $tmpdir\n";
+print "... Copying audio file:\n";
+print ">>> cp $audioFile $tmpdir\n";
 system "cp $audioFile $tmpdir";
 # need this for the ffmpeg command later
 my $audioFileName = &basename($audioFile);
@@ -160,6 +162,8 @@ my $audioFileName = &basename($audioFile);
 &pushd($tmpdir) unless $DEBUG;
 
 # run ffmpeg using the tmpdir files we created above
+print "... Executing ffmpeg:\n";
+print ">>> $FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4\n";
 system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
 
 # mv the mp4 file back
@@ -253,13 +257,12 @@ sub etime2date {
     # You can use 'gmtime' for GMT/UTC dates instead of 'localtime'
 
     my $time = shift;
-    my @months = ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
 
-    # if you want local intead of GMT, use this:
-    #my ($sec,$min,$hour,$day,$month,$year) = (localtime($time))[0,1,2,3,4,5,6];
     my ($sec,$min,$hour,$day,$month,$year) = (gmtime($time))[0,1,2,3,4,5,6]; 
+
     # add one to month index
     $month++;
+
     # pad values with 0's if required
     for my $val (\$sec, \$min, \$hour, \$day, \$month) {
 	while(length($$val)<2) {
@@ -268,10 +271,6 @@ sub etime2date {
     }
 
 
-    # format
-    # [[cc]yy]MMDDhhmm[.ss]
-    #my $date = $months[$month]." ".$day." ".($year+1900)." ".$hour.":".$min.":".$sec;
-    #my $date = ($year+1900).$month.$day.$hour.$min.".".$sec;
     my $date = $month.$day.$hour.$min.".".$sec;
 
     return $date;
