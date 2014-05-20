@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+# if no arguments, pring usage
 @ARGV || &usage;
 
 use strict;
@@ -57,6 +58,7 @@ my $CONFIGFILEDIR = &dirname($CONFIGFILE);
 my $CONFIGFILENAME = &basename($CONFIGFILE);
 
 # now split the config file into name and extension
+# use the filename part as the project name
 (my $projName = $CONFIGFILE) =~ s/\..+$//;
 
 #========================================================================
@@ -76,6 +78,7 @@ while (<CFG>) {
     # ignore comments and blank lines
     /^#/ && next;
     /^\s+$/ && next;
+    # this matches the image entries
     /^((.+?)\.(png|jpg))\,(.+)/ && do {
 	($imageFile, $imageType, $duration) = ($1, $3, $4);
 	# update the hash tables
@@ -90,11 +93,13 @@ while (<CFG>) {
 	$index++;
 	next;
     };
+    # this matches the audio file entries
     /^((.+?)\.(wav))$/ && do {
 	($audioFile, $audioType) = ($1, $2);
 	next;
     };
-    # catch all, some sort of syntax error
+    # catch all:
+    # if we get here, there's some sort of syntax error
     print "!!! ERROR: config file line unrecognized:\n";
     print ">>> $_";
     exit 1;
@@ -119,13 +124,15 @@ if (! defined $audioFile) {
     print "!!! ERROR: audioFile undefined\n";
     exit 1;
 } elsif (! -f $audioFile) {
-    print "!!! ERROR: $audioFile does not exist\n";
+    print "!!! ERROR: audio file does not exist\n";
     print ">>> $audioFile";
     exit 1;
 }
 
+######################################################################
 # if we get this far, we have verified the contents of the config file
 # :-)
+######################################################################
 
 # create tmp dir with timestamped image files
 mkdir $tmpdir unless $DEBUG;
@@ -166,7 +173,7 @@ print "... Executing ffmpeg:\n";
 print ">>> $FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4\n";
 system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
 
-# mv the mp4 file back
+# mv the mp4 file back to the dir where the config file lives
 system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
 
 # go back to original dir
@@ -175,6 +182,7 @@ system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
 # cleanup end exit
 &cleanUp;
 
+# exit the script with 0 status
 exit 0;
 
 #========================================================================
@@ -205,6 +213,7 @@ EOF
 sub cleanUp {
 #------------------------------------------------------------------------
 
+    # rm tmpdir
     system "rm", "-rf", $tmpdir;
     &popd;
 
@@ -226,6 +235,7 @@ sub pushd {
     chdir "$dir"
         || die "!!! ERROR: pushd: Can't pushd $dir";
 
+    #return the full dir path
     chop($cwd = `pwd`);
     return "$cwd";
 
@@ -254,7 +264,6 @@ sub etime2date {
 #------------------------------------------------------------------------
 
     # converts epoch time to real time
-    # You can use 'gmtime' for GMT/UTC dates instead of 'localtime'
 
     my $time = shift;
 
