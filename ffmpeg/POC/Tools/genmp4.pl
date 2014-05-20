@@ -64,7 +64,7 @@ my $CONFIGFILENAME = &basename($CONFIGFILE);
 #========================================================================
 
 # pushd into the CONFIGFILE dir
-&pushd($CONFIGFILEDIR);
+$CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
 
 # parse configfile
 my $index = '01';
@@ -128,28 +128,42 @@ if (! defined $audioFile) {
 # :-)
 
 # create tmp dir with timestamped image files
-mkdir $tmpdir || die $! unless $DEBUG;
+mkdir $tmpdir unless $DEBUG;
 # make the initial 00 image from the first image
-my $touchTimePrefix = '2000-01-01T00:00:';
+my $touchTime = 946684800;
 my $outfile = '00' . '.' . $imageType;
-my $touchTime = $touchTimePrefix . '00';
+
 print "cp $imageIndex2file{'01'} $tmpdir/$outfile\n";
 system "cp $imageIndex2file{'01'} $tmpdir/$outfile" unless $DEBUG;
-print "touch -d $touchTime $tmpdir/$outfile\n";
-system "touch -d $touchTime $tmpdir/$outfile" unless $DEBUG;
+print "touch -a $touchTime $tmpdir/$outfile\n";
+system "touch -a $touchTime $tmpdir/$outfile" unless $DEBUG;
+
 # now process the rest of the image files
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
-    $touchTime = $touchTimePrefix . $imageIndex2duration{$key};
+    $touchTime += $imageIndex2duration{$key};
     print "cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
-    print "touch -d $touchTime $tmpdir/$outfile\n";
-    system "touch -d $touchTime $tmpdir/$outfile" unless $DEBUG;
+    print "touch -a $touchTime $tmpdir/$outfile\n";
+    system "touch -a $touchTime $tmpdir/$outfile" unless $DEBUG;
 }
+# copy the audio file to the tmpdir
+print "cp $audioFile $tmpdir\n";
+system "cp $audioFile $tmpdir";
+# need this for the ffmpeg command later
+my $audioFileName = &basename($audioFile);
 
+# pushd into the tmpdir
+&pushd($tmpdir) unless $DEBUG;
 
 # run ffmpeg using the tmpdir files we created above
+system "$FFMPEG -ts_from_file 1 -i %d2.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
 
+# mv the mp4 file back
+system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+
+# go back to original dir
+&popd unless $DEBUG;
 
 # cleanup end exit
 &cleanUp;
@@ -205,7 +219,8 @@ sub pushd {
     chdir "$dir"
         || die "!!! ERROR: pushd: Can't pushd $dir";
 
-    return "$dir";
+    chop($cwd = `pwd`);
+    return "$cwd";
 
 } # end: pushd
 
