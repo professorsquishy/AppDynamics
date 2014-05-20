@@ -129,23 +129,26 @@ if (! defined $audioFile) {
 
 # create tmp dir with timestamped image files
 mkdir $tmpdir unless $DEBUG;
-# make the initial 00 image from the first image
+# make the initial timestamp 01/01/2000
 my $touchTime = 946684800;
+my $touchDate = &etime2date($touchTime);
 my $outfile = '00' . '.' . $imageType;
 
+# make the initial 00 image from the first image
 print "cp $imageIndex2file{'01'} $tmpdir/$outfile\n";
 system "cp $imageIndex2file{'01'} $tmpdir/$outfile" unless $DEBUG;
-print "touch -a $touchTime $tmpdir/$outfile\n";
-system "touch -a $touchTime $tmpdir/$outfile" unless $DEBUG;
+print "touch -t $touchDate $tmpdir/$outfile\n";
+system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 
 # now process the rest of the image files
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
     $touchTime += $imageIndex2duration{$key};
+    $touchDate = &etime2date($touchTime);
     print "cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
-    print "touch -a $touchTime $tmpdir/$outfile\n";
-    system "touch -a $touchTime $tmpdir/$outfile" unless $DEBUG;
+    print "touch -t $touchDate $tmpdir/$outfile\n";
+    system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 }
 # copy the audio file to the tmpdir
 print "cp $audioFile $tmpdir\n";
@@ -241,3 +244,33 @@ sub popd {
     return "$dir";
 
 } # end: popd
+
+#------------------------------------------------------------------------
+sub etime2date {
+#------------------------------------------------------------------------
+
+    # converts epoch time to real time
+    # You can use 'gmtime' for GMT/UTC dates instead of 'localtime'
+
+    my $time = shift;
+    my @months = ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
+
+    # if you want local intead of GMT, use this:
+    #my ($sec,$min,$hour,$day,$month,$year) = (localtime($time))[0,1,2,3,4,5,6];
+    my ($sec,$min,$hour,$day,$month,$year) = (gmtime($time))[0,1,2,3,4,5,6]; 
+    # pad values with 0's if required
+    for my $val (\$sec, \$min, \$hour, \$day) {
+	while(length($$val)<2) {
+	    $$val = "0" . $$val;
+	}
+    }
+
+    # format
+    # [[cc]yy]MMDDhhmm[.ss]
+    #my $date = $months[$month]." ".$day." ".($year+1900)." ".$hour.":".$min.":".$sec;
+    my $date = ($year+1900).$months[$month].$day.$hour.$min.".".$sec;
+
+    return $date;
+
+} # end: etime2gmtime
+
