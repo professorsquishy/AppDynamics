@@ -160,7 +160,7 @@ my $audioFileName = &basename($audioFile);
 &pushd($tmpdir) unless $DEBUG;
 
 # run ffmpeg using the tmpdir files we created above
-system "$FFMPEG -ts_from_file 1 -i %d2.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
+system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
 
 # mv the mp4 file back
 system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
@@ -271,7 +271,8 @@ sub etime2date {
     # format
     # [[cc]yy]MMDDhhmm[.ss]
     #my $date = $months[$month]." ".$day." ".($year+1900)." ".$hour.":".$min.":".$sec;
-    my $date = ($year+1900).$month.$day.$hour.$min.".".$sec;
+    #my $date = ($year+1900).$month.$day.$hour.$min.".".$sec;
+    my $date = $month.$day.$hour.$min.".".$sec;
 
     return $date;
 
