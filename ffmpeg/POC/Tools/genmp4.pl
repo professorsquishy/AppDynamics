@@ -258,17 +258,20 @@ sub etime2date {
     # if you want local intead of GMT, use this:
     #my ($sec,$min,$hour,$day,$month,$year) = (localtime($time))[0,1,2,3,4,5,6];
     my ($sec,$min,$hour,$day,$month,$year) = (gmtime($time))[0,1,2,3,4,5,6]; 
+    # add one to month index
+    $month++;
     # pad values with 0's if required
-    for my $val (\$sec, \$min, \$hour, \$day) {
+    for my $val (\$sec, \$min, \$hour, \$day, \$month) {
 	while(length($$val)<2) {
 	    $$val = "0" . $$val;
 	}
     }
 
+
     # format
     # [[cc]yy]MMDDhhmm[.ss]
     #my $date = $months[$month]." ".$day." ".($year+1900)." ".$hour.":".$min.":".$sec;
-    my $date = ($year+1900).$months[$month].$day.$hour.$min.".".$sec;
+    my $date = ($year+1900).$month.$day.$hour.$min.".".$sec;
 
     return $date;
 
