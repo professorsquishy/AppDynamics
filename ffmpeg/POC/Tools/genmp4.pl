@@ -1,4 +1,5 @@
 #!/usr/bin/perl -w
+# $Id$
 
 # if no arguments, pring usage
 @ARGV || &usage;
