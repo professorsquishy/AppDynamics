@@ -35,7 +35,7 @@ while (@ARGV) {
 	$DEBUG = 1;
 	next;
     };
-    /^-d(erbose)?$/o && do {
+    /^-v(erbose)?$/o && do {
 	$VERBOSE = 1;
 	next;
     };
@@ -186,17 +186,20 @@ if (! $DEBUG) {
     close FFMPEG;
 }
 
-# mv the mp4 file back to the dir where the config file lives
-system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+# make sure a video file was produced
+if (! -f "$tmpdir/$projName.mp4") {
+    print "!!! ERROR: $projName.mp4 was not created\n";
+    print "!!! ERROR: Run with -verbose option for details\n";
+    # cleanup end exit with stat = 1
+    &cleanUp(1);
+} else {
+    # mv the mp4 file back to the dir where the config file lives
+    print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
+    system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+}
 
-# go back to original dir
-&popd unless $DEBUG;
-
-# cleanup end exit
-&cleanUp;
-
-# exit the script with 0 status
-exit 0;
+# cleanup end exit with stat = 0
+&cleanUp(0);
 
 #========================================================================
 # Subroutines
@@ -227,9 +230,11 @@ EOF
 sub cleanUp {
 #------------------------------------------------------------------------
 
+    my $exitStat = shift;
     # rm tmpdir
     system "rm", "-rf", $tmpdir;
     &popd;
+    exit $exitStat;
 
 }
 
@@ -270,7 +275,6 @@ sub popd {
     chdir "$dir"
         || die "!!! ERROR: popd: Can't popd $dir";
 
-    print ">>> Changing dir to $dir\n";
     return "$dir";
 
 } # end: popd
