@@ -184,18 +184,19 @@ if (! $DEBUG) {
 	print if $VERBOSE;
     }
     close FFMPEG;
-}
 
-# make sure a video file was produced
-if (! -f "$tmpdir/$projName.mp4") {
-    print "!!! ERROR: $projName.mp4 was not created\n";
-    print "!!! ERROR: Run with -verbose option for details\n";
-    # cleanup end exit with stat = 1
-    &cleanUp(1);
-} else {
-    # mv the mp4 file back to the dir where the config file lives
-    print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
-    system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+    # make sure a video file was produced
+    if (! -f "$tmpdir/$projName.mp4") {
+	print "!!! ERROR: $projName.mp4 was not created\n";
+	print "!!! ERROR: Run with -verbose option for details\n";
+	# cleanup end exit with stat = 1
+	&cleanUp(1);
+    } else {
+	# mv the mp4 file back to the dir where the config file lives
+	print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
+	system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+	print "... Done\n";
+    }
 }
 
 # cleanup end exit with stat = 0
