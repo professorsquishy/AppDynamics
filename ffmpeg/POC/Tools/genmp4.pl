@@ -14,14 +14,15 @@ use FindBin qw($Bin);       # where was script installed?
 
 # assumes that this script and the ffmpeg executable are in the 
 # same directory
-my @DIRSTACK = ();
+my $CONFIGFILE = undef;
+my $DEBUG = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
-my $DEBUG = 0;
-my $CONFIGFILE = undef;
-my %imageIndex2file = ();
-my %imageIndex2duration = ();
+my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
+my %imageIndex2duration = ();
+my %imageIndex2file = ();
+my @DIRSTACK = ();
 
 select(STDOUT); $| = 1;     # make unbuffered
 
@@ -31,8 +32,11 @@ select(STDOUT); $| = 1;     # make unbuffered
 while (@ARGV) {
     $_ = shift;
     /^-d(ebug)?$/o && do {
-	# set log level to DEBUG
 	$DEBUG = 1;
+	next;
+    };
+    /^-d(erbose)?$/o && do {
+	$VERBOSE = 1;
 	next;
     };
     /^-h(elp)?$/o && &usage;
@@ -60,7 +64,7 @@ my $CONFIGFILENAME = &basename($CONFIGFILE);
 
 # now split the config file into name and extension
 # use the filename part as the project name
-(my $projName = $CONFIGFILE) =~ s/\..+$//;
+(my $projName = $CONFIGFILENAME) =~ s/\..+$//;
 
 #========================================================================
 # Main loop
@@ -80,12 +84,12 @@ while (<CFG>) {
     /^#/ && next;
     /^\s+$/ && next;
     # this matches the image entries
-    /^((.+?)\.(png|jpg))\,(.+)/ && do {
+    /^((.+?)\.(png|jpg))\,(\d+)\s*$/ && do {
 	($imageFile, $imageType, $duration) = ($1, $3, $4);
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
 	# pad duration
-	while(length($duration)<2) {
+	while (length($duration) < 2) {
 	    $duration = "0" . $duration;
 	}
 
@@ -95,7 +99,7 @@ while (<CFG>) {
 	next;
     };
     # this matches the audio file entries
-    /^((.+?)\.(mp3|wav))$/ && do {
+    /^((.+?)\.(mp3|wav))\s*$/ && do {
 	($audioFile, $audioType) = ($1, $2);
 	next;
     };
@@ -137,7 +141,7 @@ if (! defined $audioFile) {
 
 # create tmp dir with timestamped image files
 mkdir $tmpdir unless $DEBUG;
-# make the initial timestamp 01/01/2000
+# make the initial timestamp 01/01/2000 GMT
 my $touchTime = 946684800;
 my $touchDate = &etime2date($touchTime);
 my $outfile = '00' . '.' . $imageType;
@@ -170,9 +174,17 @@ my $audioFileName = &basename($audioFile);
 &pushd($tmpdir) unless $DEBUG;
 
 # run ffmpeg using the tmpdir files we created above
+my $ffmpegCmd = "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4"; 
 print "... Executing ffmpeg:\n";
-print ">>> $FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4\n";
-system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
+print ">>> $ffmpegCmd\n";
+#system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
+if (! $DEBUG) {
+    open(FFMPEG, "$ffmpegCmd 2>&1 |") || die $!;
+    while (<FFMPEG>) {
+	print if $VERBOSE;
+    }
+    close FFMPEG;
+}
 
 # mv the mp4 file back to the dir where the config file lives
 system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
@@ -200,8 +212,9 @@ USAGE: $0 [options] <config-file>
 
   Option:                 Description:
   ---------               ----------------------------------------------
-  -d(ebug)                # set global DEBUG flag
+  -d(ebug)                # set DEBUG flag
   -h(elp)?                # displays usage
+  -v(erbose)              # show more output from ffmpeg
 
 EOF
 
@@ -238,6 +251,7 @@ sub pushd {
 
     #return the full dir path
     chop($cwd = `pwd`);
+    print ">>> Changing dir to $cwd\n";
     return "$cwd";
 
 } # end: pushd
@@ -256,6 +270,7 @@ sub popd {
     chdir "$dir"
         || die "!!! ERROR: popd: Can't popd $dir";
 
+    print ">>> Changing dir to $dir\n";
     return "$dir";
 
 } # end: popd
