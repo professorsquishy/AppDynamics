@@ -94,7 +94,7 @@ while (<CFG>) {
 	next;
     };
     # this matches the audio file entries
-    /^((.+?)\.(wav))$/ && do {
+    /^((.+?)\.(mp3|wav))$/ && do {
 	($audioFile, $audioType) = ($1, $2);
 	next;
     };
