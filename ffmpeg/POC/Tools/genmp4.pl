@@ -15,6 +15,7 @@ use FindBin qw($Bin);       # where was script installed?
 # assumes that this script and the ffmpeg executable are in the 
 # same directory
 my $CONFIGFILE = undef;
+my $CLEANUP = 1;
 my $DEBUG = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
@@ -37,6 +38,10 @@ while (@ARGV) {
     };
     /^-v(erbose)?$/o && do {
 	$VERBOSE = 1;
+	next;
+    };
+    /^-nocleanup$/o && do {
+	$CLEANUP = 0;
 	next;
     };
     /^-h(elp)?$/o && &usage;
@@ -84,8 +89,14 @@ while (<CFG>) {
     /^#/ && next;
     /^\s+$/ && next;
     # this matches the image entries
-    /^((.+?)\.(png|jpg))\,(\d+)\s*$/ && do {
+    # NOTE: can only process jpg images!
+    /^((.+?)\.(\w+?))\,(\d+)\s*$/ && do {
 	($imageFile, $imageType, $duration) = ($1, $3, $4);
+	# make sure it's a jpg image
+	if ($imageType ne 'jpg') {
+	    print "!!! ERROR: image type: ", $imageType, " not supported\n";
+	    exit 1;
+	}
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
 	# pad duration
@@ -173,8 +184,9 @@ my $audioFileName = &basename($audioFile);
 # pushd into the tmpdir
 &pushd($tmpdir) unless $DEBUG;
 
-# run ffmpeg using the tmpdir files we created above
-my $ffmpegCmd = "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4"; 
+# NOTE: can only process jpg images!!
+my $ffmpegCmd = "$FFMPEG -ts_from_file 1 -i %2d.jpg -i $audioFileName -c:v libx264 $projName.mp4"; 
+
 print "... Executing ffmpeg:\n";
 print ">>> $ffmpegCmd\n";
 #system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
@@ -200,7 +212,7 @@ if (! $DEBUG) {
 }
 
 # cleanup end exit with stat = 0
-&cleanUp(0);
+$CLEANUP && &cleanUp(0);
 
 #========================================================================
 # Subroutines
