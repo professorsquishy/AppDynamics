@@ -105,7 +105,6 @@ while (<CFG>) {
 	}
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
-
 	$imageIndex2endTime{$index} = $endTime;
 	# increment the index
 	$index++;
@@ -157,7 +156,7 @@ mkdir $tmpdir unless $DEBUG;
 # make the initial timestamp 01/01/2000 GMT
 my $startTime = 946684800;
 my $imageEndTime = undef;
-my $touchDate = &etime2date($startTime);
+my $touchDate = &epochTime2date($startTime);
 my $outfile = '00' . '.' . $imageType;
 
 # make the initial 00 image from the first image
@@ -171,7 +170,7 @@ system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
     $imageEndTime = &endTime2seconds($imageIndex2endTime{$key}) + $startTime;
-    $touchDate = &etime2date($imageEndTime);
+    $touchDate = &epochTime2date($imageEndTime);
     print ">>> cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
     print ">>> touch -t $touchDate $tmpdir/$outfile\n";
@@ -345,10 +344,10 @@ sub endTime2seconds {
 
     return ($min * 60) + $sec;
 
-} # end: etime2gmtime
+} # end: endTime2seconds
 
 #------------------------------------------------------------------------
-sub etime2date {
+sub epochTime2date {
 #------------------------------------------------------------------------
 
     # converts epoch time to real time
@@ -372,5 +371,5 @@ sub etime2date {
 
     return $date;
 
-} # end: etime2gmtime
+} # end: epochTime2date
 
