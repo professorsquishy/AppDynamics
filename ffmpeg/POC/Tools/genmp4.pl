@@ -21,7 +21,7 @@ my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
 my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
-my %imageIndex2endtime = ();
+my %imageIndex2endTime = ();
 my %imageIndex2file = ();
 my @DIRSTACK = ();
 
@@ -34,6 +34,10 @@ while (@ARGV) {
     $_ = shift;
     /^-d(ebug)?$/o && do {
 	$DEBUG = 1;
+	next;
+    };
+    /^-example$/o && do {
+	&example;
 	next;
     };
     /^-v(erbose)?$/o && do {
@@ -80,27 +84,29 @@ $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
 
 # parse configfile
 my $index = '01';
-my ($imageFile, $imageType, $endtime) = undef;
+my ($imageFile, $imageType, $endTime) = undef;
 my ($audioFile, $audioType) = undef;
+my $lineno = 0;
 
 open (CFG, "$CONFIGFILENAME") || die $!;
 while (<CFG>) {
+    $lineno++;
     # ignore comments and blank lines
     /^#/ && next;
     /^\s+$/ && next;
     # this matches the image entries
     # NOTE: can only process jpg images!
     /^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
-	($imageFile, $imageType, $endtime) = ($1, $3, $4);
+	($imageFile, $imageType, $endTime) = ($1, $3, $4);
 	# make sure it's a jpg image
 	if ($imageType ne 'jpg') {
-	    print "!!! ERROR: image type: ", $imageType, " not supported\n";
+	    print "!!! ERROR: line $lineno: image type: ", $imageType, " not supported\n";
 	    exit 1;
 	}
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
 
-	$imageIndex2endtime{$index} = $endtime;
+	$imageIndex2endTime{$index} = $endTime;
 	# increment the index
 	$index++;
 	next;
@@ -112,7 +118,7 @@ while (<CFG>) {
     };
     # catch all:
     # if we get here, there's some sort of syntax error
-    print "!!! ERROR: config file line unrecognized:\n";
+    print "!!! ERROR: line $lineno: config file line unrecognized:\n";
     print ">>> $_";
     exit 1;
 }
@@ -150,7 +156,7 @@ if (! defined $audioFile) {
 mkdir $tmpdir unless $DEBUG;
 # make the initial timestamp 01/01/2000 GMT
 my $startTime = 946684800;
-my $endTime = undef;
+my $imageEndTime = undef;
 my $touchDate = &etime2date($startTime);
 my $outfile = '00' . '.' . $imageType;
 
@@ -164,8 +170,8 @@ system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 # now process the rest of the image files
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
-    $endTime = &endtime2seconds($imageIndex2endtime{$key}) + $startTime;
-    $touchDate = &etime2date($endTime);
+    $imageEndTime = &endTime2seconds($imageIndex2endTime{$key}) + $startTime;
+    $touchDate = &etime2date($imageEndTime);
     print ">>> cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
     print ">>> touch -t $touchDate $tmpdir/$outfile\n";
@@ -226,6 +232,7 @@ USAGE: $0 [options] <config-file>
   Option:                 Description:
   ---------               ----------------------------------------------
   -d(ebug)                # set DEBUG flag
+  -example                # show config file example
   -h(elp)?                # displays usage
   -v(erbose)              # show more output from ffmpeg
 
@@ -235,6 +242,43 @@ EOF
 
 } # end: usage
 
+#------------------------------------------------------------------------
+sub example {
+#------------------------------------------------------------------------
+
+    print<<"EOF";
+
+
+Config file lines must be one of the following:
+
+Comments:
+--------
+
+"#" at the beginning of the line
+
+Image File: (jpg files only!!!)
+----------
+
+<path-to-image-file>,<end-time-in-MM:SS>
+
+e.g.:
+
+../Screenshots-jpg/01-application_dashboard/Intro_APM_demo10.jpg,05:36
+
+Audio File: (mp3 or wav files)
+----------
+
+<path-to-audio-file>
+
+e.g.:
+
+../Audio/Intro_to_APM.mp3
+
+EOF
+
+   exit 1;
+
+} # end: usage
 
 #------------------------------------------------------------------------
 sub cleanUp {
@@ -290,7 +334,7 @@ sub popd {
 } # end: popd
 
 #------------------------------------------------------------------------
-sub endtime2seconds {
+sub endTime2seconds {
 #------------------------------------------------------------------------
 
     # converts MM:SS to seconds
