@@ -21,7 +21,7 @@ my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
 my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
-my %imageIndex2duration = ();
+my %imageIndex2endtime = ();
 my %imageIndex2file = ();
 my @DIRSTACK = ();
 
@@ -80,7 +80,7 @@ $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
 
 # parse configfile
 my $index = '01';
-my ($imageFile, $imageType, $duration) = undef;
+my ($imageFile, $imageType, $endtime) = undef;
 my ($audioFile, $audioType) = undef;
 
 open (CFG, "$CONFIGFILENAME") || die $!;
@@ -90,8 +90,8 @@ while (<CFG>) {
     /^\s+$/ && next;
     # this matches the image entries
     # NOTE: can only process jpg images!
-    /^((.+?)\.(\w+?))\,(\d+)\s*$/ && do {
-	($imageFile, $imageType, $duration) = ($1, $3, $4);
+    /^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
+	($imageFile, $imageType, $endtime) = ($1, $3, $4);
 	# make sure it's a jpg image
 	if ($imageType ne 'jpg') {
 	    print "!!! ERROR: image type: ", $imageType, " not supported\n";
@@ -99,12 +99,8 @@ while (<CFG>) {
 	}
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
-	# pad duration
-	while (length($duration) < 2) {
-	    $duration = "0" . $duration;
-	}
 
-	$imageIndex2duration{$index} = $duration;
+	$imageIndex2endtime{$index} = $endtime;
 	# increment the index
 	$index++;
 	next;
@@ -153,8 +149,9 @@ if (! defined $audioFile) {
 # create tmp dir with timestamped image files
 mkdir $tmpdir unless $DEBUG;
 # make the initial timestamp 01/01/2000 GMT
-my $touchTime = 946684800;
-my $touchDate = &etime2date($touchTime);
+my $startTime = 946684800;
+my $endTime = undef;
+my $touchDate = &etime2date($startTime);
 my $outfile = '00' . '.' . $imageType;
 
 # make the initial 00 image from the first image
@@ -167,8 +164,8 @@ system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 # now process the rest of the image files
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
-    $touchTime += $imageIndex2duration{$key};
-    $touchDate = &etime2date($touchTime);
+    $endTime = &endtime2seconds($imageIndex2endtime{$key}) + $startTime;
+    $touchDate = &etime2date($endTime);
     print ">>> cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
     print ">>> touch -t $touchDate $tmpdir/$outfile\n";
@@ -291,6 +288,20 @@ sub popd {
     return "$dir";
 
 } # end: popd
+
+#------------------------------------------------------------------------
+sub endtime2seconds {
+#------------------------------------------------------------------------
+
+    # converts MM:SS to seconds
+
+    my $time = shift;
+
+    my ($min, $sec) = split ':', $time;
+
+    return ($min * 60) + $sec;
+
+} # end: etime2gmtime
 
 #------------------------------------------------------------------------
 sub etime2date {
