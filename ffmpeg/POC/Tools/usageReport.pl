@@ -17,6 +17,9 @@ use FindBin qw($Bin);       # where was script installed?
 my $searchString = undef;
 my $DEBUG = 0;
 my $VERBOSE = 0;
+my $FOUND_CFGFILE = 0;
+my $FOUND_IMAGEFILE = 0;
+my $FOUND_MATCH = 0;
 my %image2script = ();
 
 select(STDOUT); $| = 1;     # make unbuffered
@@ -61,6 +64,7 @@ my $dir = '.';
 opendir (DIR, $dir) or die $!;
 while (my $configFile = readdir(DIR)) {
     $configFile =~ /\.config$/ || next;
+    $FOUND_CFGFILE = 1;
     print "... Processing: ", $configFile, "\n"if $VERBOSE;
 
     # parse configfile
@@ -76,6 +80,7 @@ while (my $configFile = readdir(DIR)) {
 	# NOTE: can only process jpg images!
 	$line =~ /^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
 	    $imageFile = $1;
+	    $FOUND_IMAGEFILE = 1;
 	    # update the hash tables
 	    next;
 	};
@@ -96,15 +101,35 @@ while (my $configFile = readdir(DIR)) {
 }
 close DIR;
 
+# if we didn't find any *.config files, print error and exit
+if (! $FOUND_CFGFILE) {
+    print "!!! ERROR: no *.config files found\n";
+    exit 1;
+}
+
+# if we didn't find any image files in the *.config files,
+# tell them that too!
+if (! $FOUND_IMAGEFILE) {
+    print "!!! ERROR: no image files found in the *.config files\n";
+    exit 1;
+}
+
 # now look for the search string across all the files
 for my $key (sort keys %image2script) {
     if ($key =~ /$searchString/) {
+	$FOUND_MATCH = 1;
 	print "@@@ $key:\n";
 	for my $line (@{$image2script{$key}}) {
 	    print $line;
 	}
 	print "\n";
     }
+}
+
+# if we didn't find any matches, tell them that too!
+if (! $FOUND_MATCH) {
+    print "!!! WARNING: no image files matched\n";
+    exit 1;
 }
 
 #========================================================================
