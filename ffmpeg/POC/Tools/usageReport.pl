@@ -17,8 +17,7 @@ use FindBin qw($Bin);       # where was script installed?
 my $searchString = undef;
 my $DEBUG = 0;
 my $VERBOSE = 0;
-my %imageIndex2endTime = ();
-my %imageIndex2file = ();
+my %image2script = ();
 my @DIRSTACK = ();
 
 select(STDOUT); $| = 1;     # make unbuffered
@@ -37,7 +36,7 @@ while (@ARGV) {
 	next;
     };
     /^-find$/o && do {
-	$searchString = 0;
+	$searchString = shift;
 	next;
     };
     /^-h(elp)?$/o && &usage;
@@ -53,53 +52,52 @@ while (@ARGV) {
 
 my $dir = '.';
 
-# parse configfile
-my $index = '01';
-my ($imageFile, $imageType, $endTime) = undef;
-my ($audioFile, $audioType) = undef;
-my $lineno = 0;
 
 # get all *.config files in current dir on down
 opendir (DIR, $dir) or die $!;
 while (my $file = readdir(DIR)) {
     $file =~ /\.config$/ || next;
-    print $file, "\n";
+    print "... Processing: ", $file, "\n";
+
+    # parse configfile
+    my $imageFile = undef;
+    my $audioFile = undef;
+    my $lineno = 0;
+    my $READ_SCRIPT = 0;
+
     open (CFGFILE, "$file") || die $!;
-    while (<CFGFILE>) {
+    while (my $line = <CFGFILE>) {
 	$lineno++;
-	# ignore comments and blank lines
-	/^#/ && next;
-	/^\s+$/ && next;
 	# this matches the image entries
 	# NOTE: can only process jpg images!
-	/^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
-	    ($imageFile, $imageType, $endTime) = ($1, $3, $4);
-	    # make sure it's a jpg image
-	    if ($imageType ne 'jpg') {
-		print "!!! ERROR: line $lineno: image type: ", $imageType, " not supported\n";
-		exit 1;
-	    }
+	$line =~ /^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
+	    $imageFile = $1;
 	    # update the hash tables
-	    $imageIndex2file{$index} = $imageFile;
-	    $imageIndex2endTime{$index} = $endTime;
-	    # increment the index
-	    $index++;
 	    next;
 	};
 	# this matches the audio file entries
-	/^((.+?)\.(mp3|wav))\s*$/ && do {
-	    ($audioFile, $audioType) = ($1, $2);
+	$line =~ /^((.+?)\.(mp3|wav))\s*$/ && do {
+	    $audioFile = $1;
 	    next;
 	};
-	# catch all:
-	# if we get here, there's some sort of syntax error
-	print "!!! ERROR: line $lineno: config file line unrecognized:\n";
-	print ">>> $_";
-	exit 1;
+	# default: add text to imageFile's script
+	if (defined $imageFile) {
+	    push @{$image2script{$imageFile}}, $line;
+	}
     }
     close CFGFILE;
 }
 close DIR;
+
+# now look for the search string
+for my $imageFile (sort keys %image2script) {
+    if ($imageFile =~ /$searchString/) {
+	print "### $imageFile:\n";
+	for my $line (@{$image2script{$imageFile}}) {
+	    print $line;
+	}
+    }
+}
 
 #========================================================================
 # Subroutines
