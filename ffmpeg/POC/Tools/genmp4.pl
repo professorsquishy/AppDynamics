@@ -14,8 +14,8 @@ use FindBin qw($Bin);       # where was script installed?
 
 # assumes that this script and the ffmpeg executable are in the 
 # same directory
-my $CONFIGFILE = undef;
 my $CLEANUP = 1;
+my $CONFIGFILE = undef;
 my $DEBUG = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
@@ -23,6 +23,7 @@ my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
 my %imageIndex2endTime = ();
 my %imageIndex2file = ();
+my @CONFIG_ERRORS = ();
 my @DIRSTACK = ();
 
 select(STDOUT); $| = 1;     # make unbuffered
@@ -86,6 +87,7 @@ $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
 my $index = '01';
 my ($imageFile, $imageType, $endTime) = undef;
 my ($audioFile, $audioType) = undef;
+my $errString = '';
 my $lineno = 0;
 
 open (CFG, "$CONFIGFILENAME") || die $!;
@@ -117,11 +119,19 @@ while (<CFG>) {
     };
     # catch all:
     # if we get here, there's some sort of syntax error
-    print "!!! ERROR: line $lineno: config file line unrecognized:\n";
-    print ">>> $_";
-    exit 1;
+    $errString = $lineno . ': ' . $_;
+    push @CONFIG_ERRORS, $errString;
 }
 close CFG;
+
+# first, test if there are any errors
+if (@CONFIG_ERRORS) {
+    print "!!! ERROR: the following lines in the config file have errors:\n";
+    for my $err (@CONFIG_ERRORS) {
+	print $err;
+    }
+    exit 1;
+}
 
 # make sure image files are defined and exist
 if (! defined $imageIndex2file{'01'}) {
