@@ -17,6 +17,7 @@ use FindBin qw($Bin);       # where was script installed?
 my $CLEANUP = 1;
 my $CONFIGFILE = undef;
 my $DEBUG = 0;
+my $ERR_STATUS = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
 my $VERBOSE = 0;
@@ -102,8 +103,9 @@ while (<CFG>) {
 	($imageFile, $imageType, $endTime) = ($1, $3, $4);
 	# make sure it's a jpg image
 	if ($imageType ne 'jpg') {
-	    print "!!! ERROR: line $lineno: image type: ", $imageType, " not supported\n";
-	    exit 1;
+	    $errString = "!!! Line #" . $lineno . ": Unsupported image type: " . $imageType . "\n>>> " . $_;
+	    push @CONFIG_ERRORS, $errString;
+	    next;
 	}
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
@@ -119,12 +121,12 @@ while (<CFG>) {
     };
     # catch all:
     # if we get here, there's some sort of syntax error
-    $errString = $lineno . ': ' . $_;
+    $errString = "!!! Line #" . $lineno . ": Unrecognized line\n>>> " . $_;
     push @CONFIG_ERRORS, $errString;
 }
 close CFG;
 
-# first, test if there are any errors
+# first, test if there are any errors in the config file syntax
 if (@CONFIG_ERRORS) {
     print "!!! ERROR: the following lines in the config file have errors:\n";
     for my $err (@CONFIG_ERRORS) {
@@ -136,23 +138,28 @@ if (@CONFIG_ERRORS) {
 # make sure image files are defined and exist
 if (! defined $imageIndex2file{'01'}) {
     print "!!! ERROR: no image files defined!\n";
-    exit 1;
+    $ERR_STATUS = 1;
 } else {
     for my $key (sort keys %imageIndex2file) {
 	if (! -f $imageIndex2file{$key}) {
 	    print "!!! ERROR: image file does not exist:\n";
-	    print ">>> $imageIndex2file{$key}";
-	    exit 1;
+	    print ">>> ", $imageIndex2file{$key}, "\n";
+	    $ERR_STATUS = 1;
 	}
     }
 }
 # make sure the audio file is defined and exists
 if (! defined $audioFile) {
     print "!!! ERROR: audioFile undefined\n";
-    exit 1;
+    $ERR_STATUS = 1;
 } elsif (! -f $audioFile) {
     print "!!! ERROR: audio file does not exist\n";
-    print ">>> $audioFile";
+    print ">>> ", $audioFile, "\n";
+    $ERR_STATUS = 1;
+}
+
+# if ERR_STATUS has been set, exit
+if ($ERR_STATUS) {
     exit 1;
 }
 
