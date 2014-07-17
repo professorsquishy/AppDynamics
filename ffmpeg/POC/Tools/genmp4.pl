@@ -20,6 +20,8 @@ my $DEBUG = 0;
 my $ERR_STATUS = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
+my $IMAGE_TYPE = 'jpg';
+my $REPAIR_EOL = 1;
 my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
 my %imageIndex2endTime = ();
@@ -48,6 +50,10 @@ while (@ARGV) {
     };
     /^-nocleanup$/o && do {
 	$CLEANUP = 0;
+	next;
+    };
+    /^-norepaireol$/o && do {
+	$REPAIR_EOL = 0;
 	next;
     };
     /^-h(elp)?$/o && &usage;
@@ -85,15 +91,21 @@ my $CONFIGFILENAME = &basename($CONFIGFILE);
 $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
 
 # parse configfile
-my $index = '01';
-my ($imageFile, $imageType, $endTime) = undef;
-my ($audioFile, $audioType) = undef;
 my $errString = '';
+my $index = '01';
 my $lineno = 0;
+my $numOfImageFiles = 0;
+my $numOfImageLines = 0;
+my ($audioFile, $audioType) = undef;
+my ($imageFile, $imageType, $endTime) = undef;
 
 open (CFG, "$CONFIGFILENAME") || die $!;
 while (<CFG>) {
     $lineno++;
+    # keep count of jpg entries
+    /\.$IMAGE_TYPE,/ && do {
+	$numOfImageLines++;
+    };
     # ignore comments and blank lines
     /^#/ && next;
     /^\s+$/ && next;
@@ -102,11 +114,13 @@ while (<CFG>) {
     /^((.+?)\.(\w+?))\,(\d{1,2}\:\d{2})\s*$/ && do {
 	($imageFile, $imageType, $endTime) = ($1, $3, $4);
 	# make sure it's a jpg image
-	if ($imageType ne 'jpg') {
+	if ($imageType ne $IMAGE_TYPE) {
 	    $errString = "!!! Line #" . $lineno . ": Unsupported image type: " . $imageType . "\n>>> " . $_;
 	    push @CONFIG_ERRORS, $errString;
 	    next;
 	}
+	# update numOfImageFiles
+	$numOfImageFiles++;
 	# update the hash tables
 	$imageIndex2file{$index} = $imageFile;
 	$imageIndex2endTime{$index} = $endTime;
@@ -148,6 +162,20 @@ if (! defined $imageIndex2file{'01'}) {
 	}
     }
 }
+
+
+# make sure the number of jpg entries matches the num of image files
+# this should catch the MS EOL issues
+if ($numOfImageFiles != $numOfImageLines) {
+    print "!!! WARNING: numOfImageFiles (", $numOfImageFiles, ') != numOfImageLines (', $numOfImageLines, ")\n";
+    print "!!! Could be DOS EOL issues in your config file\n";
+    # only repair if $REPAIR_EOL is set
+    if ($REPAIR_EOL) {
+	&fixEolChars($CONFIGFILE);
+	$ERR_STATUS = 1;
+    }
+}
+
 # make sure the audio file is defined and exists
 if (! defined $audioFile) {
     print "!!! ERROR: audioFile undefined\n";
@@ -389,4 +417,35 @@ sub epochTime2date {
     return $date;
 
 } # end: epochTime2date
+
+#------------------------------------------------------------------------
+sub fixEolChars {
+#------------------------------------------------------------------------
+
+    # this function will run perl over the file in an attempt to
+    # fix it
+    my $file = shift;
+    my $bakFile = $file . '.bak';
+
+    # need to replace stray \r chars anywhere in the line
+    my $regex = 's@\r@\n@g';
+
+    if (! -f $file) {
+	print "!!! ERROR: $file does not exist\n";
+	exit 1;
+    }
+
+    my $cmd = 'perl -pi.bak -e "' . $regex . '" ' . $file;
+
+
+    # munge the file and put save orig into .bak
+    print "### Repairing config file (saving original file in: ", $bakFile, ")\n";
+    system ($cmd);
+    
+    # diff the files
+    print "### Diffing: ", $file, ' and ', $bakFile, "\n";
+    system ("diff", $file, $bakFile);
+
+}
+
 
