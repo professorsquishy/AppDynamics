@@ -22,6 +22,7 @@ my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_OPTIONS = ' ';
 my $IMAGE_TYPE = 'jpg';
 my $REPAIR_EOL = 1;
+my $REPAIR_EOL_ONLY = 0;
 my $VERBOSE = 0;
 my $tmpdir = "/tmp/mp4.$$";
 my %imageIndex2endTime = ();
@@ -54,6 +55,10 @@ while (@ARGV) {
     };
     /^-norepaireol$/o && do {
 	$REPAIR_EOL = 0;
+	next;
+    };
+    /^-repaireol$/o && do {
+	$REPAIR_EOL_ONLY = 1;
 	next;
     };
     /^-h(elp)?$/o && &usage;
@@ -89,6 +94,12 @@ my $CONFIGFILENAME = &basename($CONFIGFILE);
 
 # pushd into the CONFIGFILE dir
 $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
+
+# if the $REPAIR_EOL_ONLY flag is set, just do that
+if ($REPAIR_EOL_ONLY) {
+    &fixEolChars($CONFIGFILE);
+    exit 0;
+}
 
 # parse configfile
 my $errString = '';
@@ -162,7 +173,6 @@ if (! defined $imageIndex2file{'01'}) {
 	}
     }
 }
-
 
 # make sure the number of jpg entries matches the num of image files
 # this should catch the MS EOL issues
@@ -278,6 +288,8 @@ USAGE: $0 [options] <config-file>
   -d(ebug)                # set DEBUG flag
   -example                # show config file example
   -h(elp)?                # displays usage
+  -repaireol              # just repair the EOL char issue
+  -norepaireol            # skip repairin the EOL char issue
   -v(erbose)              # show more output from ffmpeg
 
 EOF
@@ -447,5 +459,3 @@ sub fixEolChars {
     system ("diff", $file, $bakFile);
 
 }
-
-
