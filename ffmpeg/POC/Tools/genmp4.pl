@@ -449,8 +449,7 @@ sub fixEolChars {
 
     my $cmd = 'perl -pi.bak -e "' . $regex . '" ' . $file;
 
-
-    # munge the file and put save orig into .bak
+    # munge the file and save orig into .bak
     print "### Repairing config file (saving original file in: ", $bakFile, ")\n";
     system ($cmd);
     
