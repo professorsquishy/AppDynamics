@@ -33,7 +33,12 @@ my @DIRSTACK = ();
 select(STDOUT); $| = 1;     # make unbuffered
 
 #========================================================================
-# parse input args
+#
+# STEP 1.0: Read script input arguments
+#
+# Read the input arguments to the script to figure out what optional
+# beahvior to implement. See usage for details (perl genmp4.pl -h).
+#
 #========================================================================
 while (@ARGV) {
     $_ = shift;
@@ -71,7 +76,13 @@ while (@ARGV) {
     $CONFIGFILE = $_;
 }
 
-# make sure you got a CONFIGFILE and that it exists
+#========================================================================
+#
+# STEP 1.1: Verify script input arguments
+#
+# Make sure that config file exists! if not, print usage and exit
+#
+#========================================================================
 if (! defined $CONFIGFILE) {
     print "!!! ERROR: CONFIGFILE undefined\n";
     &usage;
@@ -88,9 +99,6 @@ my $CONFIGFILENAME = &basename($CONFIGFILE);
 # use the filename part as the project name
 (my $projName = $CONFIGFILENAME) =~ s/\..+$//;
 
-#========================================================================
-# Main loop
-#========================================================================
 
 # pushd into the CONFIGFILE dir
 $CONFIGFILEDIR = &pushd($CONFIGFILEDIR);
@@ -101,7 +109,7 @@ if ($REPAIR_EOL_ONLY) {
     exit 0;
 }
 
-# parse configfile
+# set some initial variable values
 my $errString = '';
 my $index = '01';
 my $lineno = 0;
@@ -110,6 +118,17 @@ my $numOfImageLines = 0;
 my ($audioFile, $audioType) = undef;
 my ($imageFile, $imageType, $endTime) = undef;
 
+#========================================================================
+#
+# STEP 2.0: Process the config file
+#
+# OK, now we need to read the config file and make sure all the entries
+# make sense (e.g. the files listed actually exist, etc.
+#
+# Here's where we loop through the config file one line at a time and
+# gather all the info (image/audio file paths, durations, etc)
+#
+#========================================================================
 open (CFG, "$CONFIGFILENAME") || die $!;
 while (<CFG>) {
     $lineno++;
@@ -151,6 +170,14 @@ while (<CFG>) {
 }
 close CFG;
 
+#========================================================================
+#
+# STEP 2.2: Verify the config file contents
+#
+# Now we see if there were any errors when we processed the config file
+# (e.g., do the files actually exist?) 
+#
+#========================================================================
 # first, test if there are any errors in the config file syntax
 if (@CONFIG_ERRORS) {
     print "!!! ERROR: the following lines in the config file have errors:\n";
@@ -202,8 +229,19 @@ if ($ERR_STATUS) {
 }
 
 ######################################################################
-# if we get this far, we have verified the contents of the config file
+#
+# STEP 3.0: Setup the video/audio files for ffmpeg processing
+#
+# If we get this far, we have verified the contents of the config file
 # :-)
+# Now we can do the work to create the video!
+#
+# In order for ffmpeg to create a video made up of multiple images
+# with independent durations, we have to be clever. This required
+# creating a copy of each image in a separate temporary working 
+# directory and giving it a system timestamp offset from a fixed 
+# epoch start time. 
+#
 ######################################################################
 
 # create tmp dir with timestamped image files
@@ -215,13 +253,16 @@ my $touchDate = &epochTime2date($startTime);
 my $outfile = '00' . '.' . $imageType;
 
 # make the initial 00 image from the first image
+# this is necessary to "seed" the starting point of the video with
+# a "zeroth" image which is a zero duration copy of the first
+# image in the sequence
 print "... Generating screenshot sequence:\n";
 print ">>> cp $imageIndex2file{'01'} $tmpdir/$outfile\n";
 system "cp $imageIndex2file{'01'} $tmpdir/$outfile" unless $DEBUG;
 print ">>> touch -t $touchDate $tmpdir/$outfile\n";
 system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 
-# now process the rest of the image files
+# now that we've seeded the initial image, process the rest of the image files
 for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
     $imageEndTime = &endTime2seconds($imageIndex2endTime{$key}) + $startTime;
@@ -231,12 +272,25 @@ for my $key (sort keys %imageIndex2file) {
     print ">>> touch -t $touchDate $tmpdir/$outfile\n";
     system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 }
-# copy the audio file to the tmpdir
+
+# now copy the audio file to the tmpdir
 print "... Copying audio file:\n";
 print ">>> cp $audioFile $tmpdir\n";
 system "cp $audioFile $tmpdir";
 # need this for the ffmpeg command later
 my $audioFileName = &basename($audioFile);
+
+######################################################################
+#
+# STEP 3.1: Run ffmpeg over the files in the temp directory
+#
+# Now we cd into the temp directory where all our timestamped files
+# are and call the ffmpeg program to do it's thing.
+#
+# If everything goes well, we should be left with a mp4 video that
+# has the same name as the config file.
+#
+######################################################################
 
 # pushd into the tmpdir
 &pushd($tmpdir) unless $DEBUG;
@@ -246,7 +300,10 @@ my $ffmpegCmd = "$FFMPEG -ts_from_file 1 -i %2d.jpg -i $audioFileName -c:v libx2
 
 print "... Executing ffmpeg:\n";
 print ">>> $ffmpegCmd\n";
-#system "$FFMPEG -ts_from_file 1 -i %2d.png -i $audioFileName -c:v libx264 $projName.mp4" unless $DEBUG;
+
+# if we're not in DEBUG mode, execute the ffmpeg command and move the
+# resulting mp4 file back into the config file dir next to the config
+# file that created it
 if (! $DEBUG) {
     open(FFMPEG, "$ffmpegCmd 2>&1 |") || die $!;
     while (<FFMPEG>) {
@@ -268,7 +325,14 @@ if (! $DEBUG) {
     }
 }
 
-# cleanup end exit with stat = 0
+######################################################################
+#
+# STEP 4.0: All done! Just cleanup and exit
+#
+# All code below this point are subroutine used above.
+# 
+######################################################################
+
 $CLEANUP && &cleanUp(0);
 
 #========================================================================
@@ -289,7 +353,7 @@ USAGE: $0 [options] <config-file>
   -example                # show config file example
   -h(elp)?                # displays usage
   -repaireol              # just repair the EOL char issue
-  -norepaireol            # skip repairin the EOL char issue
+  -norepaireol            # skip repairing the EOL char issue
   -v(erbose)              # show more output from ffmpeg
 
 EOF
