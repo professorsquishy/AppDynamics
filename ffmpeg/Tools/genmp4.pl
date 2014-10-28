@@ -46,6 +46,18 @@ while (@ARGV) {
 	$DEBUG = 1;
 	next;
     };
+    /^d(ebug)?=(.+?)$/o && do {
+	$DEBUG = $1;
+	next;
+    };
+    /^-ffmpeg$/o && do {
+	$FFMPEG = shift;
+	next;
+    };
+    /^ffmpeg=(.+?)$/o && do {
+	$FFMPEG = $1;
+	next;
+    };
     /^-example$/o && do {
 	&example;
 	next;
@@ -54,8 +66,16 @@ while (@ARGV) {
 	$VERBOSE = 1;
 	next;
     };
+    /^v(erbose)?=(.+?)$/o && do {
+	$VERBOSE = $1;
+	next;
+    };
     /^-nocleanup$/o && do {
 	$CLEANUP = 0;
+	next;
+    };
+    /^cleanup=(.+?)$/o && do {
+	$CLEANUP = $1;
 	next;
     };
     /^-norepaireol$/o && do {
@@ -66,8 +86,16 @@ while (@ARGV) {
 	$REPAIR_EOL_ONLY = 1;
 	next;
     };
+    /^repaireol=(.+?)$/o && do {
+	$REPAIR_EOL = $1;
+	next;
+    };
     /^-h(elp)?$/o && &usage;
     /^-.*$/ && do {
+	print "!!! ERROR: $_: Bad option\n";
+	exit 1;
+    };
+    /=/ && do {
 	print "!!! ERROR: $_: Bad option\n";
 	exit 1;
     };
@@ -80,9 +108,17 @@ while (@ARGV) {
 #
 # STEP 1.1: Verify script input arguments
 #
+#========================================================================
+
+# Make sure the ffmpeg executable exists
+#
+if (! -f $FFMPEG) {
+    print "!!! ERROR: $FFMPEG does not exist\n";
+    &usage;
+}
+
 # Make sure that config file exists! if not, print usage and exit
 #
-#========================================================================
 if (! defined $CONFIGFILE) {
     print "!!! ERROR: CONFIGFILE undefined\n";
     &usage;
