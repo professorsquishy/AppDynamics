@@ -19,10 +19,10 @@ my $CONFIGFILE = undef;
 my $DEBUG = 0;
 my $ERR_STATUS = 0;
 my $FFMPEG = "$Bin/ffmpeg";
-my $FFMPEG_CMD = undef;
-my $FFMPEG_OPTIONS = undef;
 my $FFMPEG_AUDIO_OPTIONS = undef;
-# default video options
+my $FFMPEG_CMD = undef;
+my $FFMPEG_IMAGE_OPTIONS = '-ts_from_file 1 %2d.jpg';
+my $FFMPEG_OPTIONS = undef;
 my $FFMPEG_VIDEO_OPTIONS = '-c:v libx264';
 my $IMAGE_TYPE = 'jpg';
 my $REPAIR_EOL = 1;
@@ -61,6 +61,11 @@ while (@ARGV) {
     /^video-options=(.+?)$/o && do {
 	# append more video options
 	$FFMPEG_VIDEO_OPTIONS .= ' ' . $1;
+	next;
+    };
+    /^image-options=(.+?)$/o && do {
+	# prepend more image options
+	$FFMPEG_IMAGE_OPTIONS = $1 . ' ' . $FFMPEG_IMAGE_OPTIONS;
 	next;
     };
     /^audio-options=(.+?)$/o && do {
@@ -333,9 +338,10 @@ my $audioFileName = &basename($audioFile);
 if (defined $FFMPEG_OPTIONS) {
     $FFMPEG_CMD .= ' ' . $FFMPEG_OPTIONS;
 }
-# NOTE: can only process jpg images!!
-#$FFMPEG_CMD .= ' ' . "-ts_from_file 1 -i %2d.jpg -i $audioFileName -c:v libx264 $projName.mp4"; 
-$FFMPEG_CMD .= ' ' . "-ts_from_file 1 -i %2d.jpg";
+
+# append the image input options
+$FFMPEG_CMD .= ' ' . $FFMPEG_IMAGE_OPTIONS;
+
 if (defined $FFMPEG_AUDIO_OPTIONS) {
     $FFMPEG_CMD .= ' ' . $FFMPEG_AUDIO_OPTIONS;
 }
@@ -397,11 +403,16 @@ USAGE: $0 [options] <config-file>
 
   Option:                 Description:
   ---------               ----------------------------------------------
+  audio-options="..."     # specify additional ffmpeg audio options
   debug=1                 # set DEBUG flag
   example=1               # show config file example
+  ffmpeg-options="..."    # specify additional ffmpeg cmd options
+  ffmpeg=<path-to-file>   # specify alternate ffmpeg exec
+  image-options="..."     # specify additional ffmpeg image options
   norepaireol=[0|1]       # skip repairing the EOL char issue
   repaireol=[0|1]         # just repair the EOL char issue
   verbose=1               # show more output from ffmpeg
+  video-options="..."     # specify additional ffmpeg video options
 
 EOF
 
