@@ -21,7 +21,7 @@ my $ERR_STATUS = 0;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_AUDIO_OPTIONS = undef;
 my $FFMPEG_CMD = undef;
-my $FFMPEG_IMAGE_OPTIONS = '-ts_from_file 1 %2d.jpg';
+my $FFMPEG_IMAGE_OPTIONS = '-ts_from_file 1';
 my $FFMPEG_OPTIONS = undef;
 my $FFMPEG_VIDEO_OPTIONS = '-c:v libx264';
 my $IMAGE_TYPE = 'jpg';
@@ -341,6 +341,8 @@ if (defined $FFMPEG_OPTIONS) {
 
 # append the image input options
 $FFMPEG_CMD .= ' ' . $FFMPEG_IMAGE_OPTIONS;
+# add include of audio files
+$FFMPEG_CMD .= ' ' . '-i %2d.jpg';
 
 if (defined $FFMPEG_AUDIO_OPTIONS) {
     $FFMPEG_CMD .= ' ' . $FFMPEG_AUDIO_OPTIONS;
