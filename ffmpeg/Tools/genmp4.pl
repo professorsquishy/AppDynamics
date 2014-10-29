@@ -19,7 +19,11 @@ my $CONFIGFILE = undef;
 my $DEBUG = 0;
 my $ERR_STATUS = 0;
 my $FFMPEG = "$Bin/ffmpeg";
-my $FFMPEG_OPTIONS = ' ';
+my $FFMPEG_CMD = undef;
+my $FFMPEG_OPTIONS = undef;
+my $FFMPEG_AUDIO_OPTIONS = undef;
+# default video options
+my $FFMPEG_VIDEO_OPTIONS = '-c:v libx264';
 my $IMAGE_TYPE = 'jpg';
 my $REPAIR_EOL = 1;
 my $REPAIR_EOL_ONLY = 0;
@@ -42,55 +46,47 @@ select(STDOUT); $| = 1;     # make unbuffered
 #========================================================================
 while (@ARGV) {
     $_ = shift;
-    /^-d(ebug)?$/o && do {
-	$DEBUG = 1;
-	next;
-    };
-    /^d(ebug)?=(.+?)$/o && do {
+    /^debug=(.+?)$/o && do {
 	$DEBUG = $1;
-	next;
-    };
-    /^-ffmpeg$/o && do {
-	$FFMPEG = shift;
 	next;
     };
     /^ffmpeg=(.+?)$/o && do {
 	$FFMPEG = $1;
 	next;
     };
-    /^-example$/o && do {
-	&example;
+    /^ffmpeg-options=(.+?)$/o && do {
+	$FFMPEG_OPTIONS = $1;
 	next;
     };
-    /^-v(erbose)?$/o && do {
-	$VERBOSE = 1;
+    /^video-options=(.+?)$/o && do {
+	# append more video options
+	$FFMPEG_VIDEO_OPTIONS .= ' ' . $1;
 	next;
     };
-    /^v(erbose)?=(.+?)$/o && do {
+    /^audio-options=(.+?)$/o && do {
+	$FFMPEG_AUDIO_OPTIONS = $1;
+	next;
+    };
+    /^example=(.+?)$/o && do {
+	$1 && &example;
+	next;
+    };
+    /^verbose=(.+?)$/o && do {
 	$VERBOSE = $1;
-	next;
-    };
-    /^-nocleanup$/o && do {
-	$CLEANUP = 0;
 	next;
     };
     /^cleanup=(.+?)$/o && do {
 	$CLEANUP = $1;
 	next;
     };
-    /^-norepaireol$/o && do {
-	$REPAIR_EOL = 0;
-	next;
-    };
-    /^-repaireol$/o && do {
-	$REPAIR_EOL_ONLY = 1;
+    /^repaireolonly=(.+?)$/o && do {
+	$REPAIR_EOL_ONLY = $1;
 	next;
     };
     /^repaireol=(.+?)$/o && do {
 	$REPAIR_EOL = $1;
 	next;
     };
-    /^-h(elp)?$/o && &usage;
     /^-.*$/ && do {
 	print "!!! ERROR: $_: Bad option\n";
 	exit 1;
@@ -116,6 +112,8 @@ if (! -f $FFMPEG) {
     print "!!! ERROR: $FFMPEG does not exist\n";
     &usage;
 }
+# initialize $FFMPEG_CMD string
+$FFMPEG_CMD = $FFMPEG;
 
 # Make sure that config file exists! if not, print usage and exit
 #
@@ -331,17 +329,31 @@ my $audioFileName = &basename($audioFile);
 # pushd into the tmpdir
 &pushd($tmpdir) unless $DEBUG;
 
+# add any additional options
+if (defined $FFMPEG_OPTIONS) {
+    $FFMPEG_CMD .= ' ' . $FFMPEG_OPTIONS;
+}
 # NOTE: can only process jpg images!!
-my $ffmpegCmd = "$FFMPEG -ts_from_file 1 -i %2d.jpg -i $audioFileName -c:v libx264 $projName.mp4"; 
+#$FFMPEG_CMD .= ' ' . "-ts_from_file 1 -i %2d.jpg -i $audioFileName -c:v libx264 $projName.mp4"; 
+$FFMPEG_CMD .= ' ' . "-ts_from_file 1 -i %2d.jpg";
+if (defined $FFMPEG_AUDIO_OPTIONS) {
+    $FFMPEG_CMD .= ' ' . $FFMPEG_AUDIO_OPTIONS;
+}
+# add include of audiofile
+$FFMPEG_CMD .= ' ' . "-i $audioFileName";
+# append the video output options
+$FFMPEG_CMD .= ' ' . $FFMPEG_VIDEO_OPTIONS;
+# append the video output name
+$FFMPEG_CMD .= ' ' . "$projName.mp4"; 
 
 print "... Executing ffmpeg:\n";
-print ">>> $ffmpegCmd\n";
+print ">>> $FFMPEG_CMD\n";
 
 # if we're not in DEBUG mode, execute the ffmpeg command and move the
 # resulting mp4 file back into the config file dir next to the config
 # file that created it
 if (! $DEBUG) {
-    open(FFMPEG, "$ffmpegCmd 2>&1 |") || die $!;
+    open(FFMPEG, "$FFMPEG_CMD 2>&1 |") || die $!;
     while (<FFMPEG>) {
 	print if $VERBOSE;
     }
@@ -356,7 +368,7 @@ if (! $DEBUG) {
     } else {
 	# mv the mp4 file back to the dir where the config file lives
 	print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
-	system ("mv $projName.mp4 $CONFIGFILEDIR") unless $DEBUG;
+	system ("mv $projName.mp4 $CONFIGFILEDIR");
 	print "... Done\n";
     }
 }
@@ -385,12 +397,11 @@ USAGE: $0 [options] <config-file>
 
   Option:                 Description:
   ---------               ----------------------------------------------
-  -d(ebug)                # set DEBUG flag
-  -example                # show config file example
-  -h(elp)?                # displays usage
-  -repaireol              # just repair the EOL char issue
-  -norepaireol            # skip repairing the EOL char issue
-  -v(erbose)              # show more output from ffmpeg
+  debug=1                 # set DEBUG flag
+  example=1               # show config file example
+  norepaireol=[0|1]       # skip repairing the EOL char issue
+  repaireol=[0|1]         # just repair the EOL char issue
+  verbose=1               # show more output from ffmpeg
 
 EOF
 
@@ -466,7 +477,7 @@ sub pushd {
 
     #return the full dir path
     chop($cwd = `pwd`);
-    print ">>> Changing dir to $cwd\n";
+    print "... Changing dir to $cwd\n";
     return "$cwd";
 
 } # end: pushd
