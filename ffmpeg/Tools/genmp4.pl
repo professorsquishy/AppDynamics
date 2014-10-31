@@ -23,7 +23,7 @@ my $FFMPEG_AUDIO_OPTIONS = undef;
 my $FFMPEG_CMD = undef;
 my $FFMPEG_IMAGE_OPTIONS = '-ts_from_file 1';
 my $FFMPEG_OPTIONS = undef;
-my $FFMPEG_VIDEO_OPTIONS = '-c:v libx264';
+my $FFMPEG_VIDEO_OPTIONS = '-crf 20 -r:v 30 -profile:v main -level:v 4.0 -pix_fmt yuv420p -c:v libx264';
 my $IMAGE_TYPE = 'jpg';
 my $REPAIR_EOL = 1;
 my $REPAIR_EOL_ONLY = 0;
@@ -370,7 +370,7 @@ if (! $DEBUG) {
     # make sure a video file was produced
     if (! -f "$tmpdir/$projName.mp4") {
 	print "!!! ERROR: $projName.mp4 was not created\n";
-	print "!!! ERROR: Run with -verbose option for details\n";
+	print "!!! ERROR: Run with verbose=1 option for details\n";
 	# cleanup end exit with stat = 1
 	&cleanUp(1);
     } else {
