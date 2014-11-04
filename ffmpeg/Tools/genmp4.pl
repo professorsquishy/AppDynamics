@@ -18,16 +18,24 @@ my $CLEANUP = 1;
 my $CONFIGFILE = undef;
 my $DEBUG = 0;
 my $ERR_STATUS = 0;
+my $FADE = 0;
+my $FADE_FRAMES = 25;
 my $FFMPEG = "$Bin/ffmpeg";
 my $FFMPEG_AUDIO_OPTIONS = undef;
 my $FFMPEG_CMD = undef;
 my $FFMPEG_IMAGE_OPTIONS = '-ts_from_file 1';
 my $FFMPEG_OPTIONS = undef;
-my $FFMPEG_VIDEO_OPTIONS = '-crf 20 -r:v 30 -profile:v main -level:v 4.0 -pix_fmt yuv420p -c:v libx264';
+my $FFMPEG_VIDEO_CRF = 20;
+my $FFMPEG_VIDEO_ENCODING = 'libx264';
+my $FFMPEG_VIDEO_FPS = 30;
+my $FFMPEG_VIDEO_OPTIONS = '-crf ' . $FFMPEG_VIDEO_CRF . ' -r:v ' . $FFMPEG_VIDEO_FPS . ' -profile:v main -level:v 4.0 -pix_fmt yuv420p -c:v ' . $FFMPEG_VIDEO_ENCODING;
 my $IMAGE_TYPE = 'jpg';
 my $REPAIR_EOL = 1;
 my $REPAIR_EOL_ONLY = 0;
+my $TOTAL_FRAMES = 0;
 my $VERBOSE = 0;
+my $VIDEO_DURATION = 0;
+my $VIDEO_DURATION = undef;
 my $tmpdir = "/tmp/mp4.$$";
 my %imageIndex2endTime = ();
 my %imageIndex2file = ();
@@ -48,6 +56,10 @@ while (@ARGV) {
     $_ = shift;
     /^debug=(.+?)$/o && do {
 	$DEBUG = $1;
+	next;
+    };
+    /^fade=(.+?)$/o && do {
+	$FADE = $1;
 	next;
     };
     /^ffmpeg=(.+?)$/o && do {
@@ -306,11 +318,16 @@ for my $key (sort keys %imageIndex2file) {
     $outfile = $key . '.' . $imageType;
     $imageEndTime = &endTime2seconds($imageIndex2endTime{$key}) + $startTime;
     $touchDate = &epochTime2date($imageEndTime);
+    # save the last image end time
+    $VIDEO_DURATION = &endTime2seconds($imageIndex2endTime{$key});
     print ">>> cp $imageIndex2file{$key} $tmpdir/$outfile\n";
     system "cp $imageIndex2file{$key} $tmpdir/$outfile" unless $DEBUG;
     print ">>> touch -t $touchDate $tmpdir/$outfile\n";
     system "touch -t $touchDate $tmpdir/$outfile" unless $DEBUG;
 }
+
+# calculate the total number of frames
+$TOTAL_FRAMES = $VIDEO_DURATION * $FFMPEG_VIDEO_FPS;
 
 # now copy the audio file to the tmpdir
 print "... Copying audio file:\n";
@@ -331,8 +348,7 @@ my $audioFileName = &basename($audioFile);
 #
 ######################################################################
 
-# pushd into the tmpdir
-&pushd($tmpdir) unless $DEBUG;
+# Construct the command:
 
 # add any additional options
 if (defined $FFMPEG_OPTIONS) {
@@ -354,6 +370,9 @@ $FFMPEG_CMD .= ' ' . $FFMPEG_VIDEO_OPTIONS;
 # append the video output name
 $FFMPEG_CMD .= ' ' . "$projName.mp4"; 
 
+# pushd into the tmpdir
+&pushd($tmpdir) unless $DEBUG;
+
 print "... Executing ffmpeg:\n";
 print ">>> $FFMPEG_CMD\n";
 
@@ -361,6 +380,7 @@ print ">>> $FFMPEG_CMD\n";
 # resulting mp4 file back into the config file dir next to the config
 # file that created it
 if (! $DEBUG) {
+
     open(FFMPEG, "$FFMPEG_CMD 2>&1 |") || die $!;
     while (<FFMPEG>) {
 	print if $VERBOSE;
@@ -373,12 +393,43 @@ if (! $DEBUG) {
 	print "!!! ERROR: Run with verbose=1 option for details\n";
 	# cleanup end exit with stat = 1
 	&cleanUp(1);
-    } else {
-	# mv the mp4 file back to the dir where the config file lives
-	print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
-	system ("mv $projName.mp4 $CONFIGFILEDIR");
-	print "... Done\n";
     }
+
+    if ($FADE) {
+
+	# apply fade-in, fade-out
+	my $tmpFile1 = 'fadein.mp4';
+	my $fadeOutStart = $TOTAL_FRAMES - $FADE_FRAMES;
+
+	print "... Applying Fade In\n";
+	$FFMPEG_CMD = $FFMPEG . ' -i ' . "$projName.mp4" . ' -vf "fade=in:0:' . $FADE_FRAMES . '" -acodec copy ' . "$tmpFile1";
+	print "... $FFMPEG_CMD\n";
+	open(FFMPEG, "$FFMPEG_CMD 2>&1 |") || die $!;
+	while (<FFMPEG>) {
+	    print if $VERBOSE;
+	}
+	close FFMPEG;
+
+	print "... Applying Fade Out\n";
+	$FFMPEG_CMD = $FFMPEG . ' -i ' . "$tmpFile1" . ' -vf "fade=out:' . $fadeOutStart . ':' . $FADE_FRAMES . '" -acodec copy ' . "$projName.fade.mp4";
+	print "... $FFMPEG_CMD\n";
+	open(FFMPEG, "$FFMPEG_CMD 2>&1 |") || die $!;
+	while (<FFMPEG>) {
+	    print if $VERBOSE;
+	}
+	close FFMPEG;
+
+    }
+
+    # mv the mp4 file back to the dir where the config file lives
+    print "... Moving $projName.mp4 to $CONFIGFILEDIR\n";
+    system ("mv $projName.mp4 $CONFIGFILEDIR");
+    if (-f "$projName.fade.mp4") {
+	print "... Moving $projName.fade.mp4 to $CONFIGFILEDIR\n";
+	system ("mv $projName.fade.mp4 $CONFIGFILEDIR");
+    }
+    print "... Done\n";
+
 }
 
 ######################################################################
@@ -408,6 +459,7 @@ USAGE: $0 [options] <config-file>
   audio-options="..."     # specify additional ffmpeg audio options
   debug=1                 # set DEBUG flag
   example=1               # show config file example
+  fade=[0|1]              # apply fade-in/fade-out effect
   ffmpeg-options="..."    # specify additional ffmpeg cmd options
   ffmpeg=<path-to-file>   # specify alternate ffmpeg exec
   image-options="..."     # specify additional ffmpeg image options
