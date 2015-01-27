@@ -14,13 +14,14 @@ use FindBin qw($Bin);       # where was script installed?
 
 # assumes that this script and the ffmpeg executable are in the 
 # same directory
-my $searchString = undef;
 my $DEBUG = 0;
-my $VERBOSE = 0;
-my $FOUND_CFGFILE = 0;
 my $FOUND_IMAGEFILE = 0;
 my $FOUND_MATCH = 0;
+my $SCRIPT_REPORT = 0;
+my $VERBOSE = 0;
+my $searchString = undef;
 my %image2script = ();
+my @CFG_FILE_LIST = ();
 
 select(STDOUT); $| = 1;     # make unbuffered
 
@@ -41,14 +42,31 @@ while (@ARGV) {
 	$searchString = shift;
 	next;
     };
+    /-script-report$/o && do {
+	$SCRIPT_REPORT = 1;
+	next;
+    };
     /^-h(elp)?$/o && &usage;
     /^-.*$/ && do {
 	print "!!! ERROR: $_: Bad option\n";
 	exit 1;
     };
+    # assume any other args are config files
+    /^(.+?\.config)$/ && do {
+	push @CFG_FILE_LIST, $1;
+	next;
+    };
+    
 }
 
-if (! defined $searchString) {
+if ($SCRIPT_REPORT) {
+    # don't need a searchString
+    # make sure that there's only 1 cfgfile arg
+    if (scalar(@CFG_FILE_LIST) != 1) {
+	print "!!! ERROR: -script-report requires exactly ONE config file argument\n";
+	exit 1;
+    }
+} elsif (! defined $searchString) {
     print "!!! ERROR: no search string defined\n";
     &usage;
 }
@@ -60,12 +78,20 @@ if (! defined $searchString) {
 # assume that this is run in the current working dir
 my $dir = '.';
 
-# get all *.config files in current dir on down
-opendir (DIR, $dir) or die $!;
-while (my $configFile = readdir(DIR)) {
-    $configFile =~ /\.config$/ || next;
-    $FOUND_CFGFILE = 1;
-    print "... Processing: ", $configFile, "\n"if $VERBOSE;
+# if no config files are given as args, run against all of them
+if (! defined $CFG_FILE_LIST[0]) {
+    @CFG_FILE_LIST = glob "$dir/*.config";
+}
+
+# if we didn't find any *.config files, print error and exit
+if (! defined $CFG_FILE_LIST[0]) {
+    print "!!! ERROR: no *.config files found\n";
+    exit 1;
+}
+
+for my $configFile (@CFG_FILE_LIST) {
+
+    print "... Processing: ", $configFile, "\n" if $VERBOSE;
 
     # parse configfile
     my $imageFile = undef;
@@ -99,19 +125,25 @@ while (my $configFile = readdir(DIR)) {
     }
     close CFGFILE;
 }
-close DIR;
-
-# if we didn't find any *.config files, print error and exit
-if (! $FOUND_CFGFILE) {
-    print "!!! ERROR: no *.config files found\n";
-    exit 1;
-}
 
 # if we didn't find any image files in the *.config files,
 # tell them that too!
 if (! $FOUND_IMAGEFILE) {
     print "!!! ERROR: no image files found in the *.config files\n";
     exit 1;
+}
+
+if ($SCRIPT_REPORT) {
+    # just print the scripts
+    for my $key (sort keys %image2script) {
+	for my $line (@{$image2script{$key}}) {
+	    # remove "#"
+	    $line =~ s/^#//g;
+	    print $line;
+	}
+	print "\n";
+    }
+    exit 0;
 }
 
 # now look for the search string across all the files
@@ -147,6 +179,7 @@ USAGE: $0 [options]
   Option:                 Description:
   ---------               ----------------------------------------------
   -find '<search-string>' # find <search-string> in all *.config files
+  -script-report <file>   # just print out the script for one config file
   -verbose                # print more feedback
 
 
@@ -165,6 +198,3 @@ EOF
    exit 1;
 
 } # end: usage
-
-
-
