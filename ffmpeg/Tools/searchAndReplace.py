@@ -11,10 +11,6 @@ fileToSearch = sys.argv[1]
 # read in the search/replace hash
 reader = csv.reader(open(searchReplaceFile, 'r'))
 replacements = dict(reader)
-#for src, target in replacements.iteritems():
-#    if not os.path.isfile(target):
-#        print("File: " + target + " not found")
-
 
 # iterate over the replacements
 for line in fileinput.input(fileToSearch, inplace=True):
