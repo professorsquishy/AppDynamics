@@ -1,8 +1,6 @@
 from __future__ import print_function
 import sys
-import os.path
 import csv
-import re
 import fileinput
 
 searchReplaceFile = 'old_and_new_paths.csv'
